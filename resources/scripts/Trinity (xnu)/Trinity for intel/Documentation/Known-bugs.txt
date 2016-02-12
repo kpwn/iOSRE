@@ -1,0 +1,107 @@
+- -r and -c don't seem to work together
+
+- If you run trinity inside a tmux session, sometimes the tmux session gets killed.
+  Not sure yet which syscall is causing this to happen, but it gets a SIGINT.
+- Possibly related, sometimes trinity gets reparented, leading to this sort of thing..
+
+        ├─tmux───bash───test-random.sh─┬─trinity───trinity-watchdo
+        │                              └─trinity───trinity-main─┬─trinity-child0
+        │                                                       ├─trinity-child1
+        │                                                       ├─trinity-child2
+        │                                                       ├─trinity-child3
+        │                                                       ├─trinity-child4
+        │                                                       ├─trinity-child5
+        │                                                       ├─trinity-child6
+        │                                                       └─trinity-child7
+        ├─trinity-main─┬─trinity-child0
+        │              ├─trinity-child1
+        │              ├─trinity-child2
+        │              ├─trinity-child3
+        │              ├─trinity-child4
+        │              ├─trinity-child5
+        │              ├─trinity-child6
+        │              └─trinity-child7
+        ├─2*[trinity-watchdo]
+
+
+- when we randomly call personality, the child stops logging.
+
+- fuzzing certain syscalls causes segfaults
+
+  - modify_ldt: This needs a proper sanitise routine
+  - Various VM syscalls cause us to corrupt our own state.
+    - munmap: Looks like we munmap something important.
+    - move_pages: possibly a similar bug.
+    - mprotect: Setting page_rand to readonly for eg will cause segv's.
+    These need to work on their own allocated pages, or better yet a list of
+    victim allocations.
+
+- fuzzing read() occasionally hangs a long time. Probably a socket ?
+  The watchdog _should_ be killing processes that hang, but if they're stuck in D state,
+  there's not much we can do. Maybe close that fd so we don't hang on it again?
+
+- Totalling success + failures doesn't always equal the total number of syscalls.
+  This is bizarre. We sometimes do a syscall which segfaults, but the SIGSEGV delivery
+   doesn't happen until after we've incremented some (but not all) of the counts,
+   so we get off by one with every segfault.
+
+- occasionally a thread exits after 0 syscalls. Find out why.
+
+- occasionally trinity fails to startup because we've leaked so much ipc stuff.
+  cleanup on startup. (scripts/clean-ipc.sh in the meantime)
+
+- The pid map needs locking.
+  There seem to be two different races that would be fixed with proper locking.
+
+  [9478] ## Couldn't find logfile for pid 9478
+  ## pids:
+  ## slot0: 9472
+  ## slot1: 9478
+  ## Logfiles for pids: 0x24f0300 0x24f05a0 
+  ## child logfile handle was null logging to main!
+
+  04c26dec185513631fefe7d8eb8088c30bd98db2 is an ugly workaround for this for now.
+
+
+  [14874] ## Couldn't find pid slot for 19330
+  ## pids:
+  ## slot0: -1
+  ## slot1: 19642
+  ## slot2: 19319
+  ## slot3: 19678
+  ## slot4: 19631
+  ## slot5: -1
+  ## slot6: -1
+  ## slot7: 19643
+
+  Looks like we reaped a child, but somehow it was still around, and then exited ?
+
+- Occasionally the shm gets corrupted and the counts leap up into crazy numbers
+  (and probably a bunch of other state goes awry too). Need to determine which
+  syscall is causing this.
+
+- Reparenting bug is still there.
+
+[842] Random reseed: 1816612613
+I/O possible
+BUG!: CHILD (pid:12170) GOT REPARENTED! parent pid:842. Watchdog pid:841
+BUG!: Last syscalls:
+[0]  pid:12785 call:273 callno:2497
+[1]  pid:12889 call:106 callno:1770
+[2]  pid:12818 call:217 callno:5016
+[3]  pid:13082 call:89 callno:570
+[4]  pid:12170 call:160 callno:12823
+[5]  pid:12912 call:126 callno:1663
+[6]  pid:12507 call:93 callno:7397
+[7]  pid:-1 call:248 callno:4272
+[8]  pid:-1 call:397 callno:0
+[9]  pid:-1 call:398 callno:0
+[10]  pid:-1 call:399 callno:0
+[11]  pid:-1 call:400 callno:0
+[12]  pid:-1 call:401 callno:0
+[13]  pid:-1 call:402 callno:0
+
+Also:
+ - why are those -1 pidslots having non-zero 'call' entries?)
+ - on that run, we should only have used 8 pidslots.
+
