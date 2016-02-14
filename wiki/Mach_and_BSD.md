@@ -5,7 +5,17 @@ The Mach microkernel and the BSD kernel are the two major components of XNU.
 Mach implements the absolute core of the operating system, while the BSD layer is built on top of Mach, and implements higher level concepts.
 
 ## ToC (test)
-+   [Introduction](#intro)
++   [Mach](#mach)
+    +   [Introduction](#intro)
+    +   [Philosophy](#philosophy)
+    +   [Implementation](#implementation)
+        +   [Execution primitives](#execution_primitives)
+            +   [Threads](#threads)
+            +   [Tasks](#tasks)
+        +   [IPC primitives](#ipc_primitives)
+            +   [Messages](#messages)
+            +   [Ports](#ports)
++   [BSD](#bsd)
 
 ## Mach
 
@@ -15,6 +25,7 @@ Mach is a microkernel, originally designed by CMU between the 80s and the 90s. A
 
 Mach is the absolute foundation of XNU, it deals with every crucial aspect needed for the correct functioning of the operating system. Mach does not bother with higher level concepts such as file systems or device drivers, for example. These concepts are left for other components to implement.
 
+<a name="philosophy"></a>
 ### Philosophy
 As stated before, Mach does not concern itself with higher level concepts, implementing just the bare-bones of the operating system. Mach is specifically designed to allow an entire operating system to be built upon it, which is exactly what Apple has done.
 
@@ -25,8 +36,13 @@ This may seem unconventional, and it is. But, since Mach is a microkernel, all o
 
 Summarizing, remember that Mach is just the pure foundation of XNU, and everything else is built upon it.
 
+<a name="implementation"></a>
 ### Implementation
+
+<a name="execution_primitives"></a>
 #### Execution primitives
+
+<a name="threads"></a>
 ##### Threads
 Mach is responsible for the basics abstractions of execution.
 <br>
@@ -34,6 +50,7 @@ The most basic unit of execution is indeed a _thread_. A thread provides basics 
 <br>
 Also remember that exist a direct link between a Mach thread and a BSD thread.
 
+<a name="tasks"></a>
 ##### Tasks
 A _task_ is basically a container object. It implements resources, such as virtual memory, and its only purpose it's to contain threads, since a task has no life by its own.
 <br>
@@ -41,7 +58,10 @@ It also exist a direct map between Mach tasks and BSD processes, as with threads
 <br>
 The threads in a task are kept in a singly linked list.
 
+<a name="ipc_primitives"></a>
 #### IPC primitives
+
+<a name="messages"></a>
 ##### Messages
 Mach messages are simply data exchanged between two endpoints, called ports. Mach messages constitutes the basic building block for IPC communication.
 
@@ -63,6 +83,7 @@ The standard **body** contains simply a `mach_msg_size_t`. The body is the actua
 
 The **trailer** contains a `mach_msg_trailer_type_t` (`unsigned int`), which specifies the trailer type, and a `mach_msg_trailer_size_t` for specifying the trailer size.
 
+<a name="ports"></a>
 ##### Ports
 Mach ports are endpoints for communication. From user-land perspective, a Mach port is nothing more than an integer, an opaque handle to a more complex object held in-kernel.
 
@@ -75,6 +96,7 @@ Ports may be accessed only via port rights. Those are basically permissions held
 -   `MACH_PORT_RIGHT_SEND_ONCE`: Akin to `MACH_PORT_RIGHT_SEND`, but the right is revoked after one message has been sent.
 -   `MACH_PORT_RIGHT_PORT_SET`: Receive rights for multiple ports (a port set).
 
+<a name="bsd"></a>
 ## BSD
 BSD is primarily needed to implement what Mach leaves unimplemented. Things such as users, groups, files and others are obviously needed. BSD has also been heavily modified by Apple and differs significantly from other BSD implementations.
 
