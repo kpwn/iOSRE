@@ -84,10 +84,6 @@ The **header** contains all informations needed for the message to be sent and c
 -   `msgh_id`: An unique ID. Used specifically with MIG.
 -   `msgh_bits`: Optional bits.
 
-A message is deemed _complex_ if the `MACH_MSGH_BITS_COMPLEX` flag is present in the `msgh_bits` field in its header. A complex message is structured differently: After the header, it follows a descriptor count field, followed by actual descriptors.
-<br>
-There are various types of descriptors, they generally serve the purpose of including special "attachments" to the message (for example `MACH_MSG_PORT_DESCRIPTOR` a descriptor for attaching a Mach port, or `MACH_MSG_OOL_DESCRIPTOR` for out-of-line data, i.e. pointers to data external to the message).
-
 The standard **body** contains simply a `mach_msg_size_t`. The body is the actual data of the message and can contain virtually anything.
 
 The **trailer** contains a `mach_msg_trailer_type_t` (`unsigned int`), which specifies the trailer type, and a `mach_msg_trailer_size_t` for specifying the trailer size.
@@ -151,6 +147,38 @@ extern mach_msg_return_t	mach_msg(
 -   `mach_port_name_t notify`: Optionally specifies a notification port, if you don't want it, pass `MACH_PORT_NULL`.
 
 For more example and code, see the `/wiki/code/ipc/` folder, I have made a sample client/server which interact by sending/receiving a message.
+
+Let's now discuss **complex messages**. A message is deemed _complex_ if the `MACH_MSGH_BITS_COMPLEX` flag is present in the `msgh_bits` field in its header. A complex message is structured differently: After the header, it follows a descriptor count field, followed by actual descriptors.
+<br>
+There are various types of descriptors, they generally serve the purpose of including special "attachments" to the message. Indeed, descriptors are specifically intended to "give hints" about what kind of out-of-line data we include in the message. Out-of-line data is simply data not directly included within the message itself, but instead allocated and kept somewhere else in memory, and only referenced (via a pointer, for example) by the message.
+
+Here are the various descriptors defined in XNU:
+
+-   `MACH_MSG_PORT_DESCRIPTOR`: Used to specify passing a port right along with the message.
+-   `MACH_MSG_OOL_DESCRIPTOR`: Used to specify passing generic out-of-line data.
+-   `MACH_MSG_OOL_PORTS_DESCRIPTOR`: Used to specify passing a port.
+-   `MACH_MSG_OOL_VOLATILE_DESCRIPTOR`: Used to specify passing generic volatile (subject to frequent change) out-of-line data.
+
+A sample structure for a complex message would be:
+
+```
+struct complex_message {
+    mach_msg_header_t header;
+    mach_msg_body_t body;
+    mach_msg_ool_descriptor_t desc;
+    mach_msg_trailer_t trailer;     /* optional, really */
+};
+```
+
+In this case, the `mach_msg_body_t` is required since it specifies the descriptor count. You should set the latter to the actual number of descriptors you intend to include in your message. In our case, the `body.msgh_descriptor_count` would be `1`.
+
+Now let's take a look to the specific fields of the `mach_msg_ool_descriptor_t`. I have chosen to use the `mach_msg_ool_descriptor_t` since it represents generic data, is the most used, and is a fundamental part of a known heap defragmentation technique (heap feng shui), used to increase the chances of a successful exploit.
+
+-   `address`: The OOL data address.
+-   `deallocate`: Should the data be deallocated after send?
+-   `copy`: Copy options.
+-   `type`: Descriptor type.
+-   `size`: Data size.
 
 <a name="ports"></a>
 ##### Ports
