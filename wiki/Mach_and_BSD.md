@@ -155,7 +155,7 @@ For more example and code, see the `/wiki/code/ipc/` folder, I have made a sampl
 <a name="ports"></a>
 ##### Ports
 
-<a name="introduction"></a>
+<a name="ports_intro"></a>
 ###### Introduction
 Mach ports are endpoints for communication. From user-land perspective, a Mach port is nothing more than an integer, an opaque handle to a more complex object held in-kernel.
 
