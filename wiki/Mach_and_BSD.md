@@ -4,7 +4,9 @@ The Mach microkernel and the BSD kernel are the two major components of XNU.
 <br>
 Mach implements the absolute core of the operating system, while the BSD layer is built on top of Mach, and implements higher level concepts.
 
-## ToC (test)
+_Note: As I'm writing this, I'm realizing that this whole writeup on Mach/BSD will be huge, so expect this article to be divided into several sub-articles soon._
+
+## Table of contents
 +   [Mach](#mach)
     +   [Introduction](#intro)
     +   [Philosophy](#philosophy)
@@ -14,7 +16,11 @@ Mach implements the absolute core of the operating system, while the BSD layer i
             +   [Tasks](#tasks)
         +   [IPC primitives](#ipc_primitives)
             +   [Messages](#messages)
+                +   [Introduction](#messages_intro)
+                +   [Utilizing messages](#utilizing_messages)
             +   [Ports](#ports)
+                +   [Introduction](#ports_intro)
+                +   [Port rights](#port_rights)
 +   [BSD](#bsd)
 
 ## Mach
@@ -63,6 +69,9 @@ The threads in a task are kept in a singly linked list.
 
 <a name="messages"></a>
 ##### Messages
+
+<a name="messages_intro"></a>
+###### Introduction
 Mach messages are simply data exchanged between two endpoints, called ports. Mach messages constitutes the basic building block for IPC communication.
 
 A message has an header (`mach_msg_header_t`), a body (`mach_msg_body_t`), and optionally a trailer (`mach_msg_trailer_t`).
@@ -83,12 +92,77 @@ The standard **body** contains simply a `mach_msg_size_t`. The body is the actua
 
 The **trailer** contains a `mach_msg_trailer_type_t` (`unsigned int`), which specifies the trailer type, and a `mach_msg_trailer_size_t` for specifying the trailer size.
 
+<a name="utilizing_messages"></a>
+###### Utilizing messages
+Any user-land process is able to create Mach messages and use them for communication.
+<br>
+Creating a simple message is straightforward. You are able to construct your message in any way you want, the only really needed piece is the `mach_msg_header_t`, which must **always** be located at the beginning of the message.
+
+Let's assume we are going to use the following structure for our message:
+```
+/* sending */
+typedef struct simple_mach_message_send {
+    mach_msg_header_t header;
+    uint32_t x;
+} simple_mach_message_send_t;
+```
+This would be our message, at least for sending. The reason why we need two separate structures for sending and receiving is that the kernel implicitly adds a small trailer to our message while sending it, therefore the received message will be larger than the original, and would fail to receive.
+<br>
+So, our structure for receiving:
+```
+/* receiving */
+typedef struct simple_mach_message_recv {
+    mach_msg_header_t header;
+    uint32_t x;
+    mach_msg_trailer_t trailer; // we could also use something like `uint32_t pad[8];`
+} simple_mach_message_recv_t;
+```
+This new structure is large enough and will contain the kernel-delivered message. Remember that your `send` struct instance's data will be sent to the receiver, while the `recv` struct instance will be created by the receiver and will receive the `send` structure data (imagine locally copying a structure's data to another structure).
+
+The message's header must be configured properly in order for the message to be sent/received. The absolutely necessary fields to set, for sending, are:
+-   `msgh_bits`: Apart from indicating if the message is complex, this field specifies important message attributes, for example how to interpret the `msgh_remote_port` field and the `msgh_local_port` field. This can easily be filled with the use of the `MACH_MSGH_BITS(remote, local)` macro, where `remote` and `local` specify the interpretation of the two ports.
+-   `msgh_remote_port`: Specifies the remote Mach port, i.e. where to send our message.
+-   `msgh_size`: Specifies the message size. A `sizeof()` on your message structure will suffice.
+
+Additionally, you could specify other fields, such as `msgh_local_port` (a local Mach port, on which you hold receive rights) which could be interpreted by the receiver to send a reply message back.
+
+Receiving requires only one necessary field to be set:
+-   `msgh_size`: The message size expected to be received.
+
+The (more common) API used to send/receive message is `mach_msg`. This API indeed gives you the ability to both send/receive messages, by passing specific parameters. Here's the definition:
+
+```
+extern mach_msg_return_t	mach_msg(
+					mach_msg_header_t *msg,
+					mach_msg_option_t option,
+					mach_msg_size_t send_size,
+					mach_msg_size_t rcv_size,
+					mach_port_name_t rcv_name,
+					mach_msg_timeout_t timeout,
+					mach_port_name_t notify);
+```
+
+-   `mach_msg_header_t *msg`: Is the `mach_msg_header_t` of your structure instance (wether you are sending or receiving).
+-   `mach_msg_option_t option`: The operation to perform. Send (`MACH_SEND_MSG`) or receive (`MACH_RCV_MSG`) are the most common.
+-   `mach_msg_size_t send_size`: The size of the message you are sending. If you are receiving, pass `0` to this parameter.
+-   `mach_msg_size_t rcv_size`: The size of the message you are receiving. If you are sending, this is optionally used to specify the size of the reply message. If you don't want it, pass `0` to this parameter.
+-   `mach_port_name_t rcv_name`: The Mach port for receiving the message. If you are sending, this is used to specify an optional reply port. If you don't want it, pass `MACH_PORT_NULL`.
+-   `mach_msg_timeout_t timeout`: Optionally specifies a timeout before giving up on sending/receiving. Pass `MACH_MSG_TIMEOUT_NONE` is you don't want a timeout.
+-   `mach_port_name_t notify`: Optionally specifies a notification port, if you don't want it, pass `MACH_PORT_NULL`.
+
+For more example and code, see the `/wiki/code/ipc/` folder, I have made a sample client/server which interact by sending/receiving a message.
+
 <a name="ports"></a>
 ##### Ports
+
+<a name="introduction"></a>
+###### Introduction
 Mach ports are endpoints for communication. From user-land perspective, a Mach port is nothing more than an integer, an opaque handle to a more complex object held in-kernel.
 
 Ports implement message queues to receive and enqueue messages. A message remains in a queue until a receiver dequeues it. Messages sent are guaranteed to be delivered.
 
+<a name="port_rights"></a>
+###### Port rights
 Ports may be accessed only via port rights. Those are basically permissions held by threads and tasks, needed to interact with ports. Here's a list of all the port rights:
 
 -   `MACH_PORT_RIGHT_SEND`: Whoever holds this right for a specific port, is allowed to send (enqueue) messages to that port. More than one entity at a time are allowed to retain this right.
