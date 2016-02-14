@@ -4,7 +4,12 @@ The Mach microkernel and the BSD kernel are the two major components of XNU.
 <br>
 Mach implements the absolute core of the operating system, while the BSD layer is built on top of Mach, and implements higher level concepts.
 
+## ToC (test)
++   [Introduction](#intro)
+
 ## Mach
+
+<a name="intro"></a>
 ### Introduction
 Mach is a microkernel, originally designed by CMU between the 80s and the 90s. Apple chose this microkernel as the base of their new operating system, and has substantially modified it from the original version.
 
@@ -22,14 +27,14 @@ Summarizing, remember that Mach is just the pure foundation of XNU, and everythi
 
 ### Implementation
 #### Execution primitives
-###### Threads
+##### Threads
 Mach is responsible for the basics abstractions of execution.
 <br>
 The most basic unit of execution is indeed a _thread_. A thread provides basics scheduling statistics and machine registers, used for execution. Remember that a thread has no links to resources (such as virtual memory), as these are implemented in _tasks_.
 <br>
 Also remember that exist a direct link between a Mach thread and a BSD thread.
 
-###### Tasks
+##### Tasks
 A _task_ is basically a container object. It implements resources, such as virtual memory, and its only purpose it's to contain threads, since a task has no life by its own.
 <br>
 It also exist a direct map between Mach tasks and BSD processes, as with threads.
@@ -37,7 +42,7 @@ It also exist a direct map between Mach tasks and BSD processes, as with threads
 The threads in a task are kept in a singly linked list.
 
 #### IPC primitives
-###### Messages
+##### Messages
 Mach messages are simply data exchanged between two endpoints, called ports. Mach messages constitutes the basic building block for IPC communication.
 
 A message has an header (`mach_msg_header_t`), a body (`mach_msg_body_t`), and optionally a trailer (`mach_msg_trailer_t`).
@@ -58,7 +63,7 @@ The standard **body** contains simply a `mach_msg_size_t`. The body is the actua
 
 The **trailer** contains a `mach_msg_trailer_type_t` (`unsigned int`), which specifies the trailer type, and a `mach_msg_trailer_size_t` for specifying the trailer size.
 
-###### Ports
+##### Ports
 Mach ports are endpoints for communication. From user-land perspective, a Mach port is nothing more than an integer, an opaque handle to a more complex object held in-kernel.
 
 Ports implement message queues to receive and enqueue messages. A message remains in a queue until a receiver dequeues it. Messages sent are guaranteed to be delivered.
