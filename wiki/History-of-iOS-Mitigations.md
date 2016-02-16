@@ -17,10 +17,13 @@ On the S5L8900 no sigchecking was performed by the bootrom before jumping into t
 # Poisoning
 # Stack Guard
 # KASLR
+# Info Leak Mitigation Strategy
 # Proper kernel memory protection flags
 # Address Space Isolation
 # CS_RESTRICT
+# LwVM Write Locking
 # mmap hook TeamID validation
 # validateFirstFewPages
+# KPP
 # Modern AMFI
 __TODO__
