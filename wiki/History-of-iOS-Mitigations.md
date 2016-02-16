@@ -11,6 +11,9 @@ Introduced in iOS 2.0. Common workarounds are unprotecting codesigned pages to r
 
 On the S5L8900 no sigchecking was performed by the bootrom before jumping into the LLB- note that with a solid chain of trust this wouldn't be an issue since sigchecks are performed when flashing the image, but this allowed for easy persistance once a single injection vector was acquired. This changed with the introduction of the iPod Touch 2G, whose bootrom validated also the LLB image. Common workarounds are bootrom exploits or similar low level exploit, or an userland jailbreak.
 
-# ASLR and KASLR
+# dyld data-only dylib hardening
+__blah__
+
+# ASLR
 
 __TODO__
