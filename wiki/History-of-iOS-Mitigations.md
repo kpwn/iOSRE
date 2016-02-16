@@ -13,5 +13,10 @@ On the S5L8900 no sigchecking was performed by the bootrom before jumping into t
 
 # dyld data-only dylib hardening
 # ASLR
-
+# Stack Guard
+# KASLR
+# Address Space Isolation
+# Proper kernel memory protection flags
+# validateFirstFewPages
+# Modern AMFI
 __TODO__
