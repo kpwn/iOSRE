@@ -1,10 +1,11 @@
 # iOSRE
-iOS Reverse Engineering
+iOS 逆向工程
+本仓库为kpwn/iOSRE的fork，旨在为中文世界提供一份可用的master翻译。以下涉及的内容均指master
 
-The aim of this project is to provide useful and updated tools and knowledge on iOS reverse engineering and exploitation.
-This is an ongoing effort, and still in a very new stage.
+本项目的目的是提供关于iOS逆向工程以及漏洞挖掘的有用的，新工具以及知识
+这是一个还在进展当中的项目，并且还处于早期阶段
 
-You may contribute actual files by adding it to the "resources" folder.
-Please note that these files are mostly user-contributed and may be malicious, so do your own homework before running them. If you see something bad we haven't noticed, please open an issue.
+你可以通过向resources目录下增加文件的方式来向本项目贡献
+请注意这里的大多数文件都是用户贡献的因而有可能包含恶意代码，请在运行之前先做好研究，如果你发现了什么我们没有发现的坏东西，请打开一个issue(译注：指在master分支)
 
-Thank you, and please join us at irc.freenode.net on `##iosre` for suggestions or plain idling
+谢谢, 并且请加入我们在irc.freenode.net 的`##iosre` 频道来获取建议和待定的计划
