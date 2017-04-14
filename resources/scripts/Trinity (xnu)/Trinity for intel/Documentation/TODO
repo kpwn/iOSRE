@@ -1,0 +1,207 @@
+* Rewrite the fd code.
+  - kill off NR_FILE_FDS
+  - open some files in the child too after forking.
+    - this requires a child-local fd mapping table.
+      Maybe we can then reduce the size of the shared shm->file_fds
+  - When requesting an fd, occasionally generate a new one.
+  - Could we do the nftw walks in parallel ?
+    That would speed up startup a lot.  Though would need to pass list back up to main thread somehow.
+  - support for multiple victim file parameters
+  - When picking a random path, instead of treating the pool of paths as one thing,
+    treat it as multiple (/dev, /sys, /proc). And then do a 1-in-3 chance
+    of getting one of those. Right now, because there are 5-6 digits worth of /proc & /sys,
+    they dominate over the /dev entries.
+  - more fd 'types' (fanotify_init)
+  - Add a parameter to specify only certain fd types.  --fds=sockets,files
+
+* Reseeding improvements.
+  We reseed way too often right now.
+  - Only do the periodic reseed if N syscalls have passed since the last reseed.
+  - print out the reason for reseeding.
+
+* Change regeneration code.
+  - Instead of every n syscalls, make it happen after 15 minutes (but with a minimum of n syscalls)
+  - setsockopt on network sockets periodically
+
+* Rewrite socket generation.
+  Organise into (sorted) per-protocol buckets of linked-lists..
+  - Search buckets for dupes before adding.
+  - add a function to lookup a socket from a specific proto for sendmsg etc.
+    (Still occasionally send sockets from random proto's)
+  - store fam/proto at sock creation time for looking up sockets.
+
+* More child types
+  - fragments of things that a real program would do.
+    For example   open->read->close,  open->mmap->access mem->close
+    The child_process function would randomly decide what a child is going
+    to do fragments, or random syscalls.
+  - Ability to mark some fragments as 'NEEDS_ROOT'.
+    At the same time, rework startup so that if we're root, when we fork
+    children, we decide whether or not to drop privs by looking at fragment->flags
+    After completing a root-only fragment, we either exit, or run other root-only fragments.
+    - sysctl flipper.
+    - pick random elevator alg for all queues
+
+* ioctl improvements
+  - needs filename globbing for some ioctls
+  - Sanitise routines for more ioctls
+    - ext4
+
+* Destroy structures we allocated during a syscalls ->sanitise in a ->post method.
+  - On return from the syscall, we don't call the destructor immediately.
+    We pick a small random number, and do N other syscalls before we do the destruction.
+    This requires us to create a list of work to be done later, along with a pointer
+    to any allocated data.
+  - some ancillary data needs to be destroyed immediately after the syscall
+    (it's pointless keeping around mangled pathnames for eg).
+
+* Clean up logging.
+  - Make -D use a separate debug log file
+  - audit printfs and change to output/debugf as necessary
+
+* Pretty-print improvements.
+ - decode fd number -> filename in output
+ - decode addresses when printing them out to print 'page_rand+4' instead of a hex address.
+ - ->decode_argN functions to print decoded flags etc.
+
+* Watchdog improvements
+  - in main loop, check watchdog is still alive
+  - RT watchdog task ? (needs initial startup as root, and drop privs afterwards).
+
+* filename related issues.
+  - filename cache.
+    Similar to the socketcache. Create on startup, then on loading, invalidate entries
+    that aren't present (/proc/pid etc).
+    This should improve reproducability in some cases. Right now, when a syscall
+    says "open the 5231st filename in the list", it differs across runs because we're
+    rebuilding the list, and the system state means stuff moves around.
+  - Add a way to add a filter to filelist.
+    ie, something like --filter-files=*[0-9]* to ignore all files with numbers in them.
+  - Dump filelist to a logfile. (Perhaps this ties in with the idea above to cache the filelist?)
+  - blacklist filenames for victim path & /proc/self/exe
+    - make sure we don't call unlink() or rmdir() on them
+  - file list struct extensions
+    - use count
+
+maps.c improvements:
+- convert maps.c linked-list to list.h implementation
+- Sometimes generate overlapping addresses/lengths when we have ARG_ADDRESS/ARG_ADDRESS2 pairs
+- make sure ARG_ADDRESS only uses addresses from this list, and audit all other mmap/malloc uses
+  in sanitise routines.
+
+* Arch specific TODO
+  x86-64: Build both a 64bit and a 32bit executable.
+  *: Move arch specific syscalls into syscalls/arch/
+  *: Move addresses in get_interesting_value() to a function in per-arch headers.
+
+* Perform some checks on return from syscall
+  - check padding between struct members is zeroed.
+  - Set regs that should be preserved across syscalls to a known value, and check
+    on return whether any of them got clobbered.
+  - Check for corruption patterns (LIST_DEBUG, SLAB_POISON)
+
+* run children in different namespaces, personalities.
+
+* Output errno distribution on exit
+
+* Store previous syscall results
+
+* if we exit because we become tainted, dump the last 3 syscalls.
+
+* -x & -C should build a syscall table & adjust max_nr_syscalls
+
+* allow for multiple -G's (after there is more than 'vm')
+  I might kill off -G. It might be better to just implement fragments 
+  that do various VM calls, or various network calls etc etc
+
+* audit which syscalls never succeed, and write sanitise routines for them
+
+* if a read() blocks and we get a kill from the watchdog, blacklist (close?) that fd/filename.
+
+* config file
+  - specify an ip of a victim machine
+  - exclude file list for (certain sysfs files for eg)
+  - parameter to bias the randomness passed to length parameters.
+    Right now it's hardwired to return 16 bit 70% of the time.
+    (and 32bit in the 64bit path)
+  - parameter for the dir/file randomness bias
+
+* Some of the syscalls marked AVOID are done so for good reason.
+  - Make the VM syscalls work on their own private mappings instead of page_rand
+    Right now, if mremap makes page_rand unreadable for some reason, we segfault.
+
+  - Revisit fuzzing ptrace.
+    - It's disabled currently because of situations like..
+    child a traces child b
+    child a segfaults
+    child b never proceeds, and doesn't get untraced.
+
+* When we fuzz execve, do an extra fork, sleep for 3 seconds, kill the execve'd pid, and then exit.
+
+* Further syscall annotation improvements
+  - There are a few syscalls with duplicate '64' variants.
+    They take the same arguments, and vary only in name.
+    Two possibilities.
+    1. what I did for fcntl[64] in 22b4b44ececaf59f9178f52788e3bcfe92535574
+    2. leave the dupes, just for the sake of getting the ->name right.
+
+  - Finish annotating syscall return types
+
+* When we've hit a bug once, it's really annoying to keep walking into that same bug.
+  Add some code to actively avoid calling certain syscalls with certain params based
+  on kernel version.
+  (Might be a lot of work, more than it's worth)
+  - also add an override to disable this code.
+
+* structured logging.
+  - To begin with, in parallel with existing text based logging.
+  - Basic premise is that we store records of each syscall in a manner that would
+    allow easier replay of logs.
+    - For eg, if a param is an fd, we store the type (socket/file/etc..)
+      as well as a pathname/socket triplet/whatever to create it.
+  - Eventually, kill off the text based logging, and replace it with
+    ./trinity --parselog=mylog.bin
+  - log reseed points. When we do replay, start from those points.
+  - Done correctly, this should allow automated bisecting of replays.
+    - Different replay strategies:
+      - replay log in reverse order
+      - replay from last reseed point
+      - replay using actual bisection of reseed points
+      - brute force replay using 1 call at a time from beginning of log + last syscall.
+        (possibly unnecessary if the above strategies are good enough)
+  - Once bisected, have a tool that can parse the binary log, and generate C.
+  - Would need a separate binary logfile for each child.
+    Because locking on a shared file would slow things down, and effectively single
+    thread things, unless the children pass things to a separate logger thread, which
+    has its own problems like potentially losing the last N syscalls if we crash)
+    - To begin with, just allow replay/bisect using one child process.
+      Synchronising threads across different runs may be complicated.
+
+* affect_child() on child startup
+  - personality
+  - unshare
+
+* Scalability improvements.
+  Remove the 64 child limit, as it's kinda low on big boxes.
+
+* Misc cleanups
+  - syscall.c:syscall32()  hide the assembly in a macro in arch-*.h and only do it
+     #ifdef HAVE_SYSCALL_32
+
+* watch dmesg buffer for interesting kernel messages and halt if necessary. Lockdep for eg.
+  - Pause on oops.
+    Sometimes we might want to read trinity state when we trigger a bad event.
+
+* Reduce segvs.
+  - if we're passing an address we own like page_rand to a syscall, make sure we haven't
+    already done something like munmap'd it, or mprotect'd it.
+    (Will need us to create some structure to document what we've done to an addr on prior syscalls).
+    iknowthis already does something like this with its vma tracking. investigate.
+  - 32bit children seem to nearly always segv
+
+* Blocked child improvements.
+  - if we find a blocking fd, check if it's a socket, and shutdown() it. 
+    (tricky: we need to do the shutdown in the main process, and then tell other children)
+  - if all children are stuck, just exit.
+    (Haven't seen this happen in a while. still a problem?)
+

@@ -1,0 +1,9 @@
+Some things you might like to know to run trinity like a pro(tm).
+
+- The kernel is pretty noisy in some areas. You might find that it's
+  worthwhile to remove a bunch of the noisier printk/WARN statements
+  in your kernel tree while fuzzing.
+
+- Likewise, setting the sysctl net.core.warnings = 0 may be a good idea.
+
+

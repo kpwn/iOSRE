@@ -1,0 +1,37 @@
+* Building on old distributions.
+  Trinity is developed using the latest glibc/kernel, which means from time to time
+  changes are introduced which may make it fail to compile on older distributions
+  (especially enterprise ones).  The preferred way to fix this is to add the missing
+  declarations to compat.h
+  If for some reason you can't detect presence of a definition in a header file
+  (or need to test prescence of a header file), add it to configure.sh. This should
+  be a last resort, in most cases an #ifndef addition to compat.h will be enough.
+
+  This means of course that trinity will be trying to run new syscalls on older kernels
+  that don't implement them, but it will only call them once. After the first -ENOSYS,
+  it gets marked as "Don't run this again".  It also allows us to run and test newer
+  kernels on distributions with older userspace whose header files may not define those features.
+
+* Porting to new architectures
+  - Add a syscalls-{archname}.h defining the syscall table in the same order as your arch
+  - Add a arch-{archname}.h to define useful things like PAGE_OFFSET
+  - If your arch starts its Linux syscalls at non-zero (like MIPS/IA64 do), define SYSCALL_OFFSET
+    in arch-{archname}.h
+  - Add syscalls/{syscallname}.c for your arch specific syscalls.
+  - Change setup_syscall_tables in tables.c to pick the correct syscall table for your arch.
+  That should be it.
+
+* Adding new sanitise routines
+  TODO
+
+* Process model.
+  On startup, the first process sets up the shm etc, and then forks two processes.
+
+  1. The 'main' process (see main.c), which is responsible for..
+     - initial opening of sockets/fd's.  See sockets.c/fds.c/files.c
+     - forking new children See fork_children()
+     - handling those children.  See handle_child()
+
+  2. A 'watchdog' process that makes sure the child processes are making progress,
+     and assorted other 'periodic' tasks.  All this lives in watchdog.c
+
